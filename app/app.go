@@ -1,18 +1,20 @@
 package gaia
 
 import (
-	"io"
-	stdlog "log"
-	"net/http"
-	"os"
-	"path/filepath"
-
+	"fmt"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/simapp"
 	ibcclientclient "github.com/cosmos/ibc-go/modules/core/02-client/client"
 	"github.com/gorilla/mux"
 	"github.com/rakyll/statik/fs"
+	"github.com/spf13/cast"
+	"io"
+	stdlog "log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sync"
 
 	abci "github.com/tendermint/tendermint/abci/types"
 	tmjson "github.com/tendermint/tendermint/libs/json"
@@ -231,6 +233,36 @@ func NewGaiaApp(
 	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey)
 	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
 
+	// configure state listening capabilities using AppOptions
+	listeners := cast.ToStringSlice(appOpts.Get("store.streamers"))
+	for _, listenerName := range listeners {
+		// get the store keys allowed to be exposed for this streaming service/state listeners
+		exposeKeyStrs := cast.ToStringSlice(appOpts.Get(fmt.Sprintf("streamers.%s.keys", listenerName)))
+		exposeStoreKeys := make([]sdk.StoreKey, 0, len(exposeKeyStrs))
+		for _, keyStr := range exposeKeyStrs {
+			if storeKey, ok := keys[keyStr]; ok {
+				exposeStoreKeys = append(exposeStoreKeys, storeKey)
+			}
+		}
+		// get the constructor for this listener name
+		constructor, err := baseapp.NewStreamingServiceConstructor(listenerName)
+		if err != nil {
+			tmos.Exit(err.Error()) // or continue?
+		}
+		// generate the streaming service using the constructor, appOptions, and the StoreKeys we want to expose
+		streamingService, err := constructor(appOpts, exposeStoreKeys)
+		if err != nil {
+			tmos.Exit(err.Error())
+		}
+		// register the streaming service with the BaseApp
+		bApp.RegisterHooks(streamingService)
+		// waitgroup and quit channel for optional shutdown coordination of the streaming service
+		wg := new(sync.WaitGroup)
+		quitChan := make(chan struct{})
+		// kick off the background streaming service loop
+		streamingService.Stream(wg, quitChan) // maybe this should be done from inside BaseApp instead?
+	}
+
 	app := &GaiaApp{
 		BaseApp:           bApp,
 		legacyAmino:       legacyAmino,
@@ -326,7 +358,7 @@ func NewGaiaApp(
 	app.FeeGrantKeeper = feegrantKeeper
 
 	authzKeeper := authzkeeper.NewKeeper(
-		keys[authzkeeper.StoreKey],appCodec, app.MsgServiceRouter(),
+		keys[authzkeeper.StoreKey], appCodec, app.MsgServiceRouter(),
 	)
 	app.AuthzKeeper = authzKeeper
 	/****  Module Options ****/
