@@ -1,35 +1,17 @@
 package gaia
 
 import (
-	"fmt"
-	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/simapp"
-	ibcclientclient "github.com/cosmos/ibc-go/modules/core/02-client/client"
-	"github.com/gorilla/mux"
-	"github.com/rakyll/statik/fs"
-	"github.com/spf13/cast"
-	"io"
-	stdlog "log"
-	"net/http"
-	"os"
-	"path/filepath"
-	"sync"
-
-	abci "github.com/tendermint/tendermint/abci/types"
-	tmjson "github.com/tendermint/tendermint/libs/json"
-	"github.com/tendermint/tendermint/libs/log"
-	tmos "github.com/tendermint/tendermint/libs/os"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
-	dbm "github.com/tendermint/tm-db"
-
 	"github.com/cosmos/cosmos-sdk/baseapp"
+	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
 	"github.com/cosmos/cosmos-sdk/client/rpc"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	"github.com/cosmos/cosmos-sdk/server/config"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
+	"github.com/cosmos/cosmos-sdk/simapp"
+	"github.com/cosmos/cosmos-sdk/store/streaming"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/version"
@@ -92,10 +74,25 @@ import (
 	ibctransfertypes "github.com/cosmos/ibc-go/modules/apps/transfer/types"
 	ibc "github.com/cosmos/ibc-go/modules/core"
 	ibcclient "github.com/cosmos/ibc-go/modules/core/02-client"
+	ibcclientclient "github.com/cosmos/ibc-go/modules/core/02-client/client"
 	ibcclienttypes "github.com/cosmos/ibc-go/modules/core/02-client/types"
 	porttypes "github.com/cosmos/ibc-go/modules/core/05-port/types"
 	ibchost "github.com/cosmos/ibc-go/modules/core/24-host"
 	ibckeeper "github.com/cosmos/ibc-go/modules/core/keeper"
+	"github.com/gorilla/mux"
+	"github.com/rakyll/statik/fs"
+	"github.com/spf13/cast"
+	abci "github.com/tendermint/tendermint/abci/types"
+	tmjson "github.com/tendermint/tendermint/libs/json"
+	"github.com/tendermint/tendermint/libs/log"
+	tmos "github.com/tendermint/tendermint/libs/os"
+	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
+	dbm "github.com/tendermint/tm-db"
+	"io"
+	stdlog "log"
+	"net/http"
+	"os"
+	"path/filepath"
 
 	// unnamed import of statik for swagger UI support
 	_ "github.com/cosmos/cosmos-sdk/client/docs/statik"
@@ -233,35 +230,20 @@ func NewGaiaApp(
 	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey)
 	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
 
-	// configure state listening capabilities using AppOptions
-	listeners := cast.ToStringSlice(appOpts.Get("store.streamers"))
-	for _, listenerName := range listeners {
-		// get the store keys allowed to be exposed for this streaming service/state listeners
-		exposeKeyStrs := cast.ToStringSlice(appOpts.Get(fmt.Sprintf("streamers.%s.keys", listenerName)))
-		exposeStoreKeys := make([]sdk.StoreKey, 0, len(exposeKeyStrs))
-		for _, keyStr := range exposeKeyStrs {
-			if storeKey, ok := keys[keyStr]; ok {
-				exposeStoreKeys = append(exposeStoreKeys, storeKey)
-			}
-		}
-		// get the constructor for this listener name
-		constructor, err := baseapp.NewStreamingServiceConstructor(listenerName)
-		if err != nil {
-			tmos.Exit(err.Error()) // or continue?
-		}
-		// generate the streaming service using the constructor, appOptions, and the StoreKeys we want to expose
-		streamingService, err := constructor(appOpts, exposeStoreKeys)
-		if err != nil {
-			tmos.Exit(err.Error())
-		}
-		// register the streaming service with the BaseApp
-		bApp.RegisterHooks(streamingService)
-		// waitgroup and quit channel for optional shutdown coordination of the streaming service
-		wg := new(sync.WaitGroup)
-		quitChan := make(chan struct{})
-		// kick off the background streaming service loop
-		streamingService.Stream(wg, quitChan) // maybe this should be done from inside BaseApp instead?
+	// FileStreamingConstructor is the StreamingServiceConstructor function for creating a FileStreamingService
+	FileStreamingConstructor := func(opts servertypes.AppOptions) (streaming.Hook, error) {
+		filePrefix := cast.ToString(opts.Get("streamers.file.prefix"))
+		fileDir := cast.ToString(opts.Get("streamers.file.writeDir"))
+		return streaming.NewFileStreamingService(fileDir, filePrefix), nil
 	}
+
+	// generate the streaming service using the constructor, appOptions, and the StoreKeys we want to expose
+	streamingService, err := FileStreamingConstructor(appOpts)
+	if err != nil {
+		tmos.Exit(err.Error())
+	}
+	// register the streaming service with the BaseApp
+	bApp.RegisterHooks(streamingService)
 
 	app := &GaiaApp{
 		BaseApp:           bApp,
