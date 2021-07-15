@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/baseapp"
-	"github.com/cosmos/cosmos-sdk/codec"
-	"github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	abci "github.com/tendermint/tendermint/abci/types"
 	tentypes "github.com/tendermint/tendermint/types"
@@ -34,10 +32,9 @@ type (
 // FileStreamingService is a concrete implementation of StreamingService that writes state changes out to a file
 type FileStreamingService struct {
 	header     tentypes.Header
-	txCache    []DeliverTx     // the cache that write tx out to
-	filePrefix string          // optional prefix for each of the generated files
-	writeDir   string          // directory to write files into
-	marshaller codec.Marshaler // marshaller used for re-marshalling the ABCI messages to write them out to the destination files
+	txCache    []DeliverTx // the cache that write tx out to
+	filePrefix string      // optional prefix for each of the generated files
+	writeDir   string      // directory to write files into
 }
 
 func (fss *FileStreamingService) ListenBeginBlock(ctx sdk.Context, req abci.RequestBeginBlock, res abci.ResponseBeginBlock) {
@@ -130,13 +127,9 @@ func (fss *FileStreamingService) ListenDeliverTx(ctx sdk.Context, req abci.Reque
 
 // NewFileStreamingService creates a new FileStreamingService for the provided writeDir, (optional) filePrefix, and storeKeys
 func NewFileStreamingService(writeDir, filePrefix string) baseapp.Hook {
-	var m codec.Marshaler
-	interfaceRegistry := types.NewInterfaceRegistry()
-	m = codec.NewProtoCodec(interfaceRegistry)
 	return &FileStreamingService{
 		filePrefix: filePrefix,
 		writeDir:   writeDir,
-		marshaller: m,
 		txCache:    make([]DeliverTx, 0),
 	}
 }
