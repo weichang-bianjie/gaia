@@ -31,6 +31,7 @@ type (
 
 // FileStreamingService is a concrete implementation of StreamingService that writes state changes out to a file
 type FileStreamingService struct {
+	//todo start_height,end_height
 	header     tentypes.Header
 	txCache    []DeliverTx // the cache that write tx out to
 	filePrefix string      // optional prefix for each of the generated files
@@ -86,7 +87,7 @@ func (fss *FileStreamingService) ListenEndBlock(ctx sdk.Context, req abci.Reques
 			file.Close()
 		}
 	}
-
+	//todo set hook tx start_height and end_height
 	data, err := json.Marshal(Block{
 		Height:   fss.header.Height,
 		Time:     fss.header.Time.Unix(),
@@ -117,6 +118,8 @@ func (fss *FileStreamingService) ListenDeliverTx(ctx sdk.Context, req abci.Reque
 	// reset cache
 	// write res to file
 	// close file
+
+	//todo set hook tx start_height and end_height
 
 	fss.txCache = append(fss.txCache, DeliverTx{
 		Tx:       hex.EncodeToString(req.Tx),
