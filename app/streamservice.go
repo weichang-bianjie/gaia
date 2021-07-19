@@ -13,6 +13,12 @@ import (
 )
 
 type (
+	LastestBlock struct {
+		Height   int64  `json:"height"`
+		Hash     string `json:"hash"`
+		Time     int64  `json:"time"`
+		Proposer string `json:"proposer"`
+	}
 	Block struct {
 		Height   int64  `json:"height"`
 		Hash     string `json:"hash"`
@@ -44,6 +50,28 @@ func (fss *FileStreamingService) ListenBeginBlock(ctx sdk.Context, req abci.Requ
 	if err != nil {
 		ctx.Logger().Error(err.Error())
 		return
+	}
+	//add latest block
+	data, err := json.Marshal(LastestBlock{
+		Height:   fss.header.Height,
+		Time:     fss.header.Time.Unix(),
+		Hash:     fss.header.Hash().String(),
+		Proposer: fss.header.ProposerAddress.String(),
+	})
+	if err == nil {
+		var filePrefix string
+		if strings.Contains(fss.filePrefix, "_") {
+			filePrefix = fss.filePrefix[:strings.Index(fss.filePrefix, "_")]
+		}
+		blockfilename := fmt.Sprint(fss.writeDir, "/", filePrefix, "_latest_block")
+		file, err := os.Create(blockfilename)
+		if err != nil {
+			ctx.Logger().Error(err.Error())
+			return
+		}
+
+		file.Write(data)
+		file.Close()
 	}
 	// NOTE: this could either be done synchronously or asynchronously
 	// create a new file with the req info according to naming schema
