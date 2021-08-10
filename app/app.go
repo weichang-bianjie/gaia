@@ -1,6 +1,7 @@
 package gaia
 
 import (
+	"fmt"
 	"github.com/cosmos/gaia/v4/app/model"
 	"github.com/spf13/cast"
 	"io"
@@ -228,6 +229,9 @@ func NewGaiaApp(
 		passwd := cast.ToString(opts.Get("database.passwd"))
 		database := cast.ToString(opts.Get("database.database"))
 		chainId := cast.ToString(opts.Get("database.chain_id"))
+		if addrs == "" || user == "" || passwd == "" || database == "" {
+			return nil, fmt.Errorf("database info of addr,user,passwd,database is needed")
+		}
 		return NewMongoDbService(model.DataBaseConf{
 			Addrs:    addrs,
 			User:     user,
