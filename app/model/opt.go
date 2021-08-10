@@ -5,6 +5,7 @@ import (
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/mgo.v2/txn"
+	stdlog "log"
 	"strings"
 	"time"
 )
@@ -46,7 +47,7 @@ func Init(conf *DataBaseConf) {
 	var err error
 	session, err = mgo.DialWithInfo(dialInfo)
 	if err != nil {
-
+		stdlog.Fatal("dial mongodb connection failed", err.Error())
 	}
 	session.SetMode(mgo.Strong, true)
 }
