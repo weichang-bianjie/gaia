@@ -1,6 +1,7 @@
 package gaia
 
 import (
+	"github.com/cosmos/gaia/v4/app/model"
 	"github.com/spf13/cast"
 	"io"
 	stdlog "log"
@@ -215,20 +216,38 @@ func NewGaiaApp(
 	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey)
 	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
 
-	// FileStreamingConstructor is the StreamingServiceConstructor function for creating a FileStreamingService
-	FileStreamingConstructor := func(opts servertypes.AppOptions) (baseapp.Hook, error) {
-		filePrefix := cast.ToString(opts.Get("streamers.file.prefix"))
-		fileDir := cast.ToString(opts.Get("streamers.file.writeDir"))
-		return NewFileStreamingService(fileDir, filePrefix), nil
+	//// FileStreamingConstructor is the StreamingServiceConstructor function for creating a FileStreamingService
+	//FileStreamingConstructor := func(opts servertypes.AppOptions) (baseapp.Hook, error) {
+	//	filePrefix := cast.ToString(opts.Get("streamers.file.prefix"))
+	//	fileDir := cast.ToString(opts.Get("streamers.file.writeDir"))
+	//	return NewFileStreamingService(fileDir, filePrefix), nil
+	//}
+	MongoDbConstructor := func(opts servertypes.AppOptions) (baseapp.Hook, error) {
+		addrs := cast.ToString(opts.Get("database.addrs"))
+		user := cast.ToString(opts.Get("database.user"))
+		passwd := cast.ToString(opts.Get("database.passwd"))
+		database := cast.ToString(opts.Get("database.database"))
+		chainId := cast.ToString(opts.Get("database.chain_id"))
+		return NewMongoDbService(model.DataBaseConf{
+			Addrs:    addrs,
+			User:     user,
+			Passwd:   passwd,
+			Database: database,
+			ChainId:  chainId,
+		}), nil
 	}
 
 	// generate the streaming service using the constructor, appOptions, and the StoreKeys we want to expose
-	streamingService, err := FileStreamingConstructor(appOpts)
+	//streamingService, err := FileStreamingConstructor(appOpts)
+	//if err != nil {
+	//	tmos.Exit(err.Error())
+	//}
+	dbService, err := MongoDbConstructor(appOpts)
 	if err != nil {
 		tmos.Exit(err.Error())
 	}
 	// register the streaming service with the BaseApp
-	bApp.RegisterHooks(streamingService)
+	bApp.RegisterHooks(dbService)
 
 	app := &GaiaApp{
 		BaseApp:           bApp,

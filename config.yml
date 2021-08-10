@@ -7,3 +7,15 @@ accounts:
 validator:
   name: alice
   staked: "100000000stake"
+
+[streamers]
+    [streamers.file]
+        writeDir = "/Users/user/adr038"
+        prefix = "adr38"
+
+[database]
+    addrs = "localhost:27018"
+    user = "iris"
+    passwd = "irispassword"
+    database = "rainbow-server-check"
+    chain_id = "iris"
